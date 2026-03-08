@@ -78,6 +78,11 @@ source install/setup.bash
 ros2 launch autopatrol_robot autopatrol.launch.py
 ```
 
+运行planner_server以显示错误
+```
+ros2 run nav2_planner planner_server --ros-args --params-file /home/lrm/chapt8/chapt8_ws/src/fishbot_navigation2/config/nav2_params.yaml
+```
+
 ## 3.作者
 
 - [fishros](https://github.com/fishros)
