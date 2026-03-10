@@ -135,8 +135,8 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.15
-      yaw_goal_tolerance: 0.15
+      xy_goal_tolerance: 0.2
+      yaw_goal_tolerance: 0.20
     # DWB parameters
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
@@ -164,7 +164,7 @@ controller_server:
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.5
-      xy_goal_tolerance: 0.15
+      xy_goal_tolerance: 0.2
       trans_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: True
       stateful: True
@@ -176,8 +176,8 @@ controller_server:
       GoalAlign.forward_point_distance: 0.1
       PathDist.scale: 32.0
       GoalDist.scale: 24.0
-      RotateToGoal.scale: 32.0
-      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.scale: 20.0
+      RotateToGoal.slowing_factor: 2.0
       RotateToGoal.lookahead_time: -1.0
 
 local_costmap:
@@ -287,7 +287,12 @@ planner_server:
       # plugin: "nav2_custom_planner/CustomPlanner"
       # interpolation_resolution: 0.1
 
-      plugin: "nav2_rrt_origin_planner/RRTOriginPlanner"
+      # plugin: "nav2_rrt_origin_planner/RRTOriginPlanner" #最原始的RRT算法
+      # plugin: "nav2_rrt_dynamic_biased_planner/RRTDynamicBiasedPlanner" #动态偏置RRT算法
+      # plugin: "nav2_rrt_apf_guided_planner/RRTAPFGuidedPlanner" #APF引导RRT算法
+      plugin: "nav2_rrt_adaptive_step_planner/RRTAdaptiveStepPlanner" #自适应步长RRT算法
+      use_sim_time: True  # 显式为插件再加一遍，防止 C++ 内部获取失败
+
       # interpolation_resolution: 0.1
 
 smoother_server:

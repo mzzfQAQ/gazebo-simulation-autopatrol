@@ -10,6 +10,8 @@
 #include "nav2_util/lifecycle_node.hpp" //生命周期节点 rclcpp的一个子类
 #include "nav2_util/robot_utils.hpp" //机器人工具类
 #include "nav_msgs/msg/path.hpp" //路径消息 
+#include "visualization_msgs/msg/marker.hpp"//可视化标记消息
+#include <chrono> // 用于计时
 
 namespace nav2_rrt_origin_planner {
 // RRT原始规划器类
@@ -45,6 +47,9 @@ private:
     std::string global_frame_, name_;
     // 插值分辨率
     double interpolation_resolution_;
+
+protected:
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
 };
 
 } // namespace nav2_rrt_origin_planner

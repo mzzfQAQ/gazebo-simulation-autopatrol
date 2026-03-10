@@ -1,0 +1,5 @@
+<library path="nav2_rrt_adaptive_step_planner_plugin">
+	<class name="nav2_rrt_adaptive_step_planner/RRTAdaptiveStepPlanner" type="nav2_rrt_adaptive_step_planner::RRTAdaptiveStepPlanner" base_class_type="nav2_core::GlobalPlanner">
+	  <description>是一个自定义示例插件，用于生成自定义路径。</description>
+	</class>
+</library>

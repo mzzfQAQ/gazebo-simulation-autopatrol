@@ -19,5 +19,10 @@
     <build_type>ament_cmake</build_type>
     <nav2_core plugin="${prefix}/custom_planner_plugin.xml" />
     <nav2_core plugin="${prefix}/rrt_origin_planner_plugin.xml" />
+    <nav2_core plugin="${prefix}/rrt_dynamic_biased_planner_plugin.xml" />
+    <nav2_core plugin="${prefix}/rrt_apf_guided_planner_plugin.xml" />
+    <nav2_core plugin="${prefix}/rrt_bspline_smooth_planner_plugin.xml" />
+    <nav2_core plugin="${prefix}/rrt_adaptive_step_planner_plugin.xml" />
+    <nav2_core plugin="${prefix}/rrt_pruning_planner_plugin.xml" />
   </export>
 </package>
