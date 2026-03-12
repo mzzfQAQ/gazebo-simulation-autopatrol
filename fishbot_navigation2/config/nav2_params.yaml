@@ -145,7 +145,7 @@ controller_server:
       min_vel_y: 0.0
       max_vel_x: 0.26
       max_vel_y: 0.0
-      max_vel_theta: 0.8
+      max_vel_theta: 1.2
       min_speed_xy: 0.0
       max_speed_xy: 0.26
       min_speed_theta: 0.0
@@ -290,7 +290,9 @@ planner_server:
       # plugin: "nav2_rrt_origin_planner/RRTOriginPlanner" #最原始的RRT算法
       # plugin: "nav2_rrt_dynamic_biased_planner/RRTDynamicBiasedPlanner" #动态偏置RRT算法
       # plugin: "nav2_rrt_apf_guided_planner/RRTAPFGuidedPlanner" #APF引导RRT算法
-      plugin: "nav2_rrt_adaptive_step_planner/RRTAdaptiveStepPlanner" #自适应步长RRT算法
+      # plugin: "nav2_rrt_adaptive_step_planner/RRTAdaptiveStepPlanner" #自适应步长RRT算法
+      # plugin: "nav2_rrt_pruning_planner/RRTPruningPlanner" #RRT剪枝规划器
+      plugin: "nav2_rrt_bspline_smooth_planner/RRTBSplineSmoothPlanner" #B样条RRT规划器
       use_sim_time: True  # 显式为插件再加一遍，防止 C++ 内部获取失败
 
       # interpolation_resolution: 0.1
