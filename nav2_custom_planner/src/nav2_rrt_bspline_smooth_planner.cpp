@@ -20,10 +20,10 @@ void RRTBSplineSmoothPlanner::configure(
   costmap_ = costmap_ros->getCostmap();
   global_frame_ = costmap_ros->getGlobalFrameID();
 
-  auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable();
-  marker_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("/rrt_tree_markers", qos);
+  // 这里的 QoS 改为可靠传输，确保 RViz 稳定接收
+  marker_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("/rrt_tree_markers", 10);
   
-  RCLCPP_INFO(node_->get_logger(), "RRTBSplineSmoothPlanner 已配置：集成距离敏感型目标偏置。");
+  RCLCPP_INFO(node_->get_logger(), "RRTBSplineSmoothPlanner 已配置：窄通道优化版。");
 }
 
 void RRTBSplineSmoothPlanner::activate() { marker_pub_->on_activate(); }
@@ -33,14 +33,21 @@ void RRTBSplineSmoothPlanner::cleanup() { marker_pub_.reset(); }
 bool RRTBSplineSmoothPlanner::isLineClear(double x1, double y1, double x2, double y2)
 {
   double dist = std::hypot(x2 - x1, y2 - y1);
-  int steps = static_cast<int>(dist / costmap_->getResolution());
+  double res = costmap_->getResolution();
+  // 使用 0.5 倍分辨率步进，确保在窄道中不会漏掉任何一个像素点
+  int steps = static_cast<int>(dist / (res * 0.5));
+  
   for (int i = 0; i <= steps; ++i) {
-    double px = x1 + (x2 - x1) * (static_cast<double>(i) / (steps > 0 ? steps : 1));
-    double py = y1 + (y2 - y1) * (static_cast<double>(i) / (steps > 0 ? steps : 1));
+    double t = (steps > 0) ? (static_cast<double>(i) / steps) : 1.0;
+    double px = x1 + (x2 - x1) * t;
+    double py = y1 + (y2 - y1) * t;
+    
     unsigned int mx, my;
-    if (!costmap_->worldToMap(px, py, mx, my) || costmap_->getCost(mx, my) >= 180) {
-      return false;
-    }
+    if (!costmap_->worldToMap(px, py, mx, my)) return false;
+    
+    unsigned char cost = costmap_->getCost(mx, my);
+    // 关键阈值：允许进入膨胀区（<253），拦截内切圆碰撞（253）和致命障碍（254）
+    if (cost >= 253) return false;
   }
   return true;
 }
@@ -51,7 +58,6 @@ std::vector<geometry_msgs::msg::PoseStamped> RRTBSplineSmoothPlanner::bsplineSmo
 {
   std::vector<geometry_msgs::msg::PoseStamped> smooth_path;
   int n = control_points.size();
-  
   if (n < 4) return control_points;
 
   for (int i = 0; i < n - 3; ++i) {
@@ -93,78 +99,69 @@ nav_msgs::msg::Path RRTBSplineSmoothPlanner::createPlan(
   global_path.header.stamp = current_time;
   global_path.header.frame_id = global_frame_;
 
+  // 可视化 Marker 初始化
   visualization_msgs::msg::Marker tree_marker;
   tree_marker.header.frame_id = global_frame_;
   tree_marker.header.stamp = current_time;
   tree_marker.ns = "rrt_tree";
   tree_marker.type = visualization_msgs::msg::Marker::LINE_LIST;
   tree_marker.action = visualization_msgs::msg::Marker::ADD;
-  tree_marker.scale.x = 0.02;
-  tree_marker.color.r = 0.0; tree_marker.color.g = 1.0; tree_marker.color.b = 0.0; tree_marker.color.a = 0.5;
+  tree_marker.scale.x = 0.015;
+  tree_marker.color.r = 0.0; tree_marker.color.g = 1.0; tree_marker.color.b = 0.0; tree_marker.color.a = 0.6;
 
   std::vector<Node> tree;
   tree.emplace_back(start.pose.position.x, start.pose.position.y, -1);
 
+  // 1. 局部采样范围优化：将随机点限制在起点和终点附近的矩形区域（加 3m 冗余）
+  double min_x = std::min(start.pose.position.x, goal.pose.position.x) - 3.0;
+  double max_x = std::max(start.pose.position.x, goal.pose.position.x) + 3.0;
+  double min_y = std::min(start.pose.position.y, goal.pose.position.y) - 3.0;
+  double max_y = std::max(start.pose.position.y, goal.pose.position.y) + 3.0;
+
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::uniform_real_distribution<> dis_x(costmap_->getOriginX(), costmap_->getOriginX() + costmap_->getSizeInMetersX());
-  std::uniform_real_distribution<> dis_y(costmap_->getOriginY(), costmap_->getOriginY() + costmap_->getSizeInMetersY());
+  std::uniform_real_distribution<> dis_x(min_x, max_x);
+  std::uniform_real_distribution<> dis_y(min_y, max_y);
   std::uniform_real_distribution<> dis_prob(0.0, 1.0);
 
   bool found = false;
-  const int max_iterations = 3000;
+  const int max_iterations = 15000;
+  const double step_size = 0.1; // 细化步长，保证能通过窄道
   const double goal_x = goal.pose.position.x;
   const double goal_y = goal.pose.position.y;
 
   for (int iterations = 0; iterations < max_iterations; ++iterations) {
-    // 1. 寻找当前树中距离目标最近的点，以计算动态偏置概率
-    double dist_to_goal_min = 1e9;
-    int nearest_to_target_idx = 0;
-    for (size_t j = 0; j < tree.size(); ++j) {
-        double d = std::hypot(tree[j].x - goal_x, tree[j].y - goal_y);
-        if (d < dist_to_goal_min) {
-            dist_to_goal_min = d;
-            nearest_to_target_idx = j;
-        }
-    }
-
-    // 2. 计算动态目标偏置概率 (Distance-sensitive Goal Bias)
-    // 距离越短，概率越高。公式：P = max_p * exp(-k * dist)
-    // 这里使用简单的线性映射：如果在 5米外，概率为 0.05；如果在 0.5米内，概率为 0.5
-    double goal_sample_prob = 0.5 * std::exp(-0.4 * dist_to_goal_min); 
-    goal_sample_prob = std::clamp(goal_sample_prob, 0.05, 0.7); // 限制在 5% 到 70% 之间
+    // 动态目标偏置
+    double dist_to_goal_min = std::hypot(tree.back().x - goal_x, tree.back().y - goal_y);
+    double goal_sample_prob = std::clamp(0.6 * std::exp(-0.4 * dist_to_goal_min), 0.1, 0.8);
 
     double rx, ry;
     if (dis_prob(gen) < goal_sample_prob) {
-      rx = goal_x;
-      ry = goal_y;
+      rx = goal_x; ry = goal_y;
     } else {
-      rx = dis_x(gen);
-      ry = dis_y(gen);
+      rx = dis_x(gen); ry = dis_y(gen);
     }
 
-    // 3. 寻找 tree 中距离采样点最近的节点
-    int nearest_node_idx = 0; 
+    int nearest_idx = 0; 
     double min_d = 1e9;
     for (size_t j = 0; j < tree.size(); ++j) {
       double d = std::hypot(tree[j].x - rx, tree[j].y - ry);
-      if (d < min_d) { min_d = d; nearest_node_idx = j; }
+      if (d < min_d) { min_d = d; nearest_idx = j; }
     }
 
-    // 4. 步进增长
-    double step = 0.3;
-    double angle = std::atan2(ry - tree[nearest_node_idx].y, rx - tree[nearest_node_idx].x);
-    double nx = tree[nearest_node_idx].x + step * std::cos(angle);
-    double ny = tree[nearest_node_idx].y + step * std::sin(angle);
+    double angle = std::atan2(ry - tree[nearest_idx].y, rx - tree[nearest_idx].x);
+    double nx = tree[nearest_idx].x + step_size * std::cos(angle);
+    double ny = tree[nearest_idx].y + step_size * std::sin(angle);
 
-    if (isLineClear(tree[nearest_node_idx].x, tree[nearest_node_idx].y, nx, ny)) {
-      tree.emplace_back(nx, ny, nearest_node_idx);
+    if (isLineClear(tree[nearest_idx].x, tree[nearest_idx].y, nx, ny)) {
+      tree.emplace_back(nx, ny, nearest_idx);
+      
       geometry_msgs::msg::Point p1, p2;
-      p1.x = tree[nearest_node_idx].x; p1.y = tree[nearest_node_idx].y; p1.z = 0.1;
-      p2.x = nx; p2.y = ny; p2.z = 0.1;
+      p1.x = tree[nearest_idx].x; p1.y = tree[nearest_idx].y; p1.z = 0.05;
+      p2.x = nx; p2.y = ny; p2.z = 0.05;
       tree_marker.points.push_back(p1); tree_marker.points.push_back(p2);
 
-      if (std::hypot(nx - goal_x, ny - goal_y) < 0.4) {
+      if (std::hypot(nx - goal_x, ny - goal_y) < 0.25) {
         found = true; break;
       }
     }
@@ -185,41 +182,42 @@ nav_msgs::msg::Path RRTBSplineSmoothPlanner::createPlan(
     }
     std::reverse(raw_path.begin(), raw_path.end());
 
-    // 剪枝逻辑
+    // 2. 剪枝 (Pruning) - 产生最短折线路径
     std::vector<geometry_msgs::msg::PoseStamped> pruned;
-    if (!raw_path.empty()) {
-      pruned.push_back(raw_path.front());
-      size_t curr_idx = 0;
-      while (curr_idx < raw_path.size() - 1) {
-        bool jump = false;
-        for (size_t t = raw_path.size() - 1; t > curr_idx; --t) {
-          if (isLineClear(raw_path[curr_idx].pose.position.x, raw_path[curr_idx].pose.position.y,
-                          raw_path[t].pose.position.x, raw_path[t].pose.position.y)) {
-            pruned.push_back(raw_path[t]);
-            curr_idx = t; jump = true; break;
-          }
+    pruned.push_back(raw_path.front());
+    for (size_t i = 0; i < raw_path.size(); ) {
+      bool jumped = false;
+      for (size_t j = raw_path.size() - 1; j > i; --j) {
+        if (isLineClear(raw_path[i].pose.position.x, raw_path[i].pose.position.y,
+                        raw_path[j].pose.position.x, raw_path[j].pose.position.y)) {
+          pruned.push_back(raw_path[j]);
+          i = j; jumped = true; break;
         }
-        if (!jump) { curr_idx++; pruned.push_back(raw_path[curr_idx]); }
       }
+      if (!jumped) { i++; if(i < raw_path.size()) pruned.push_back(raw_path[i]); }
     }
 
-    // B 样条平滑
-    std::vector<geometry_msgs::msg::PoseStamped> control_points = pruned;
-    if (control_points.size() >= 2) {
-        control_points.insert(control_points.begin(), pruned.front());
-        control_points.push_back(pruned.back());
+    // 3. [防撞墙核心] B 样条平滑后进行二次碰撞检测
+    if (pruned.size() < 4) {
+      global_path.poses = pruned; // 点太少，平滑无意义，直接返回折线
+    } else {
+      auto smoothed_path = bsplineSmooth(pruned, 10);
+      bool is_smooth_safe = true;
+      for (size_t k = 0; k < smoothed_path.size() - 1; ++k) {
+        if (!isLineClear(smoothed_path[k].pose.position.x, smoothed_path[k].pose.position.y,
+                         smoothed_path[k+1].pose.position.x, smoothed_path[k+1].pose.position.y)) {
+          is_smooth_safe = false; // 平滑路径切内角撞墙了
+          break;
+        }
+      }
+      // 如果平滑路径不安全，回退到剪枝后的折线路径（保证能过窄道）
+      global_path.poses = is_smooth_safe ? smoothed_path : pruned;
     }
-    
-    global_path.poses = bsplineSmooth(control_points, 10);
 
     auto end_time_clock = std::chrono::steady_clock::now();
-    std::chrono::duration<double, std::milli> elapsed_ms = end_time_clock - start_time_clock;
-
-    RCLCPP_INFO(node_->get_logger(), 
-      "RRT(距离敏感偏置) 成功 | 剪枝控制点: %ld | 采样点: %ld | 耗时: %.2f ms", 
-      pruned.size(), global_path.poses.size(), elapsed_ms.count());
+    RCLCPP_INFO(node_->get_logger(), "RRT 成功 | 节点: %ld | 耗时: %.2f ms", 
+                tree.size(), std::chrono::duration<double, std::milli>(end_time_clock - start_time_clock).count());
   }
-
   return global_path;
 }
 
