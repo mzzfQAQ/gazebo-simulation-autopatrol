@@ -21,7 +21,7 @@ def generate_launch_description():
     # map_yaml_path = launch.substitutions.LaunchConfiguration(
     #     'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'room.yaml'))
     map_yaml_path = launch.substitutions.LaunchConfiguration(
-        'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'narrow_corridor.yaml'))
+        'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'U_shaped_obstacle.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
         'params_file', default=os.path.join(fishbot_navigation2_dir, 'config', 'nav2_params.yaml'))
 

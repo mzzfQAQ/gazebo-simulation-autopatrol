@@ -103,9 +103,9 @@ ros2 run nav2_planner planner_server --ros-args --params-file /home/lrm/chapt8/c
 ros2 launch fishbot_navigation2 slam_rviz2.launch.py
 ```
 
-扫图结束后输入：
+扫图结束后在改路径：~/BISHE_WS/src/fishbot_navigation2/maps下输入：
 ```
-ros2 run nav2_map_server map_server_cli -f ${文件名}
+ros2 run nav2_map_server map_saver_cli -f ${文件名}
 ```
 即可生成地图文件（.pgm和.yaml）。
 
@@ -113,8 +113,34 @@ ros2 run nav2_map_server map_server_cli -f ${文件名}
 
 本项目在 Navigation 2 的基础上实现了多个基于 RRT 算法的自定义导航规划器插件，分别是：
 
+- RRTOriginPlanner（最原始的RRT算法）
+- RRTDynamicBiasedPlanner（动态偏置RRT算法）
+- RRTAPFPlanner（APF规划器）
+- RRTAdaptivePlanner（自适应步长RRT规划器）
+- RRTPruningPlanner（RRT剪枝规划器）
 - RRTBSplineSmoothPlanner（B样条RRT规划器）
 - RRTConnectPlanner（RRT Connect规划器（为窄通道而生））
+
+
+如果插件注册成功可以在/home/lrm/BISHE_WS/install/nav2_custom_planner/lib中查看插件文件。
+
+### 2.5各个插件在房间中的性能比较
+先运行gazebo仿真环境：
+```
+ros2 launch fishbot_description gazebo_sim.launch.py
+```
+
+运行导航并收集日志信息：
+```
+ros2 launch fishbot_navigation2 navigation2.launch.py >${插件名}.log 
+```
+
+运行性能信息比较脚本log_analyzer.py
+```
+python3 log_analyzer.py 
+`````
+
+
 
 ## 3.原作者
 
