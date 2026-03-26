@@ -13,6 +13,7 @@
 - fishbot_application_cpp 机器人导航应用 C++ 代码
 - autopatrol_interfaces  自动巡检相关接口
 - autopatrol_robot  自动巡检实现功能包
+- nav2_custom_planners  自定义导航规划器插件
 
 ## 2.使用方法
 
@@ -83,6 +84,41 @@ ros2 launch autopatrol_robot autopatrol.launch.py
 ros2 run nav2_planner planner_server --ros-args --params-file /home/lrm/chapt8/chapt8_ws/src/fishbot_navigation2/config/nav2_params.yaml
 ```
 
-## 3.作者
+### 2.3扫图
+在功能包fishbot_gazebo_sim中的gazebo_sim.launch.py中修改参数（将要扫图的.world文件路径替换）
+```
+    default_gazebo_world_path = os.path.join(urdf_package_path,'world','narrow_corridor.world')
+```
+
+扫图完成后会在当前目录下生成一个map.pgm和map.yaml文件，分别是地图图像和地图元数据文件。将它们移动到fishbot_navigation2的maps目录下，并修改nav2_params.yaml中的地图路径参数：
+
+```
+  map_server:
+    ros__parameters:
+      yaml_filename: "/home/lrm/BISHE_WS/src/fishbot_navigation2/maps/map.yaml"
+```
+
+启动fishbot_navigation2导航功能包中的slam_rviz2.launch.py手动操控扫图
+```
+ros2 launch fishbot_navigation2 slam_rviz2.launch.py
+```
+
+扫图结束后输入：
+```
+ros2 run nav2_map_server map_server_cli -f ${文件名}
+```
+即可生成地图文件（.pgm和.yaml）。
+
+### 2.4自定义导航规划器
+
+本项目在 Navigation 2 的基础上实现了多个基于 RRT 算法的自定义导航规划器插件，分别是：
+
+- RRTBSplineSmoothPlanner（B样条RRT规划器）
+- RRTConnectPlanner（RRT Connect规划器（为窄通道而生））
+
+## 3.原作者
 
 - [fishros](https://github.com/fishros)
+
+## 4.编者
+- [mzzfQAQ](https://github.com/mzzfQAQ)
