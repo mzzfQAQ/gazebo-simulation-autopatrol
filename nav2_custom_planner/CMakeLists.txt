@@ -44,9 +44,12 @@ ament_target_dependencies(nav2_rrt_pruning_planner_plugin nav2_core pluginlib rc
 add_library(nav2_rrt_bspline_smooth_planner_plugin SHARED src/nav2_rrt_bspline_smooth_planner.cpp)
 ament_target_dependencies(nav2_rrt_bspline_smooth_planner_plugin nav2_core pluginlib rclcpp)
 
+# 10. 创建第八个插件库 (RRT Connect Planner)
+add_library(nav2_rrt_connect_planner_plugin SHARED src/nav2_rrt_connect_planner.cpp)
+ament_target_dependencies(nav2_rrt_connect_planner_plugin nav2_core pluginlib rclcpp)
 
 
-# 10. 安装所有库文件
+# 11. 安装所有库文件
 install(TARGETS 
   nav2_custom_planner_plugin
   nav2_rrt_origin_planner_plugin
@@ -55,6 +58,7 @@ install(TARGETS
   nav2_rrt_bspline_smooth_planner_plugin
   nav2_rrt_adaptive_step_planner_plugin
   nav2_rrt_pruning_planner_plugin
+  nav2_rrt_connect_planner_plugin
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -73,5 +77,6 @@ pluginlib_export_plugin_description_file(nav2_core rrt_apf_guided_planner_plugin
 pluginlib_export_plugin_description_file(nav2_core rrt_bspline_smooth_planner_plugin.xml)
 pluginlib_export_plugin_description_file(nav2_core rrt_adaptive_step_planner_plugin.xml)
 pluginlib_export_plugin_description_file(nav2_core rrt_pruning_planner_plugin.xml)
+pluginlib_export_plugin_description_file(nav2_core rrt_connect_planner_plugin.xml)
 
 ament_package()

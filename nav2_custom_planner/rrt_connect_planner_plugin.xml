@@ -1,0 +1,5 @@
+<library path="nav2_rrt_connect_planner_plugin">
+	<class name="nav2_rrt_connect_planner/RRTConnectPlanner" type="nav2_rrt_connect_planner::RRTConnectPlanner" base_class_type="nav2_core::GlobalPlanner">
+	  <description>是一个自定义示例插件，用于生成自定义路径。</description>
+	</class>
+</library>
