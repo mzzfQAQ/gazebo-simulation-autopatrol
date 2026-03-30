@@ -135,10 +135,12 @@ ros2 launch fishbot_description gazebo_sim.launch.py
 ros2 launch fishbot_navigation2 navigation2.launch.py >${插件名}.log 
 ```
 
-运行性能信息比较脚本log_analyzer.py
+运行性能信息比较脚本log_analyzer.py从而获得性能比较图（包括节点数和耗时）
 ```
 python3 log_analyzer.py 
 `````
+
+![alt text](../Figure_finally.png)
 
 
 
