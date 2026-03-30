@@ -174,10 +174,14 @@ PLUGINLIB_EXPORT_CLASS(nav2_custom_planners::RRTOriginPlanner, nav2_core::Global
         plugin: "nav2_custom_planner/RRTOriginPlanner"
 ```
 
+### 2.7自定义导航规划器插件在窄通道中的性能比较
+rrt_connect插件在窄通道中的性能表现(gazebo仿真)
+![rrt_connect通过窄通道](rrt_connect_narrow_corridor.gif)
+rrt_connect在窄通道中的随机树：
+![alt text](rrt_connect_narrow_corridor_rviz.png)
 
 
-
-## 3.原作者
+## 3.原作者(感谢鱼香ROS提供的基础框架)
 
 - [fishros](https://github.com/fishros)
 
