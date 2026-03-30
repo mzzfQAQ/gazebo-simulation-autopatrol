@@ -174,12 +174,19 @@ PLUGINLIB_EXPORT_CLASS(nav2_custom_planners::RRTOriginPlanner, nav2_core::Global
         plugin: "nav2_custom_planner/RRTOriginPlanner"
 ```
 
-### 2.7自定义导航规划器插件在窄通道中的性能比较
-rrt_connect插件在窄通道中的性能表现(gazebo仿真)
+### 2.7自定义导航规划器插件在窄通道中与nav2_navfn_planner的性能比较
+nav2_navfn_planner在窄通道中的性能表现(gazebo仿真):
+![navfn_planner通过窄通道](navfn_narrow_corridor.gif)
+nav2_navfn_planner在窄通道中的路径（rviz显示）：
+![alt text](nav2_navfn_planner_narrow_corridor.png)
+rrt_connect插件在窄通道中的性能表现(gazebo仿真):
 ![rrt_connect通过窄通道](rrt_connect_narrow_corridor.gif)
-rrt_connect在窄通道中的随机树：
+rrt_connect在窄通道中的随机树（rviz显示）：
 ![alt text](rrt_connect_narrow_corridor_rviz.png)
 
+技术笔记：关于窄通道停顿现象的说明
+>
+在仿真过程中，机器人进入窄通道前出现短暂“停顿”或“犹豫”，通常并非全局规划器（如 RRT-Connect 或 Dijkstra）失效，而是受 Nav2 局部代价地图（Local Costmap）膨胀层 的安全机制影响。当通道宽度接近机器人直径时，膨胀层产生的高代价值会导致局部控制器（Controller）为规避碰撞而极度减速；通过优化 inflation_layer 的 cost_scaling_factor 并调小 inflation_radius，可以显著提升机器人在狭窄空间的通过效率。
 
 ## 3.原作者(感谢鱼香ROS提供的基础框架)
 
