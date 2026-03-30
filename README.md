@@ -142,6 +142,39 @@ python3 log_analyzer.py
 
 ![alt text](Figure_finally.png)
 
+### 2.6创建自定义导航规划器插件
+1. 创建插件类，继承 nav2_core::GlobalPlanner，并实现其中的纯虚函数：
+
+```
+class RRTOriginPlanner : public nav2_core::GlobalPlanner
+{
+public:
+    RRTOriginPlanner() = default;
+    ~RRTOriginPlanner() = default;
+};
+```   
+2. 在 CMakeLists.txt 中添加插件库的编译配置：
+
+```
+add_library(${PROJECT_NAME} SHARED ${PROJECT_NAME}.cpp)
+```
+3. 在插件类中实现规划算法，并在 pluginlib 中注册插件（在cpp文件中）：
+
+``` 
+#include "pluginlib/class_list_macros.hpp"
+PLUGINLIB_EXPORT_CLASS(nav2_custom_planners::RRTOriginPlanner, nav2_core::GlobalPlanner)
+```
+4. 在导航参数配置文件 nav2_params.yaml 中指定使用的插件：
+
+```
+  planner_server:
+    ros__parameters:
+      planner_plugins: ["RRTOriginPlanner"]
+      RRTOriginPlanner:
+        plugin: "nav2_custom_planner/RRTOriginPlanner"
+```
+
+
 
 
 ## 3.原作者
