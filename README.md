@@ -140,7 +140,7 @@ ros2 launch fishbot_navigation2 navigation2.launch.py >${插件名}.log
 python3 log_analyzer.py 
 `````
 
-![alt text](../Figure_finally.png)
+![alt text](Figure_finally.png)
 
 
 
