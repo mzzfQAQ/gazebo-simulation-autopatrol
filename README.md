@@ -123,26 +123,7 @@ ros2 run nav2_map_server map_saver_cli -f ${文件名}
 
 
 如果插件注册成功可以在/home/lrm/BISHE_WS/install/nav2_custom_planner/lib中查看插件文件。
-
-### 2.5各个插件在房间中的性能比较
-先运行gazebo仿真环境：
-```
-ros2 launch fishbot_description gazebo_sim.launch.py
-```
-
-运行导航并收集日志信息：
-```
-ros2 launch fishbot_navigation2 navigation2.launch.py >${插件名}.log 
-```
-
-运行性能信息比较脚本log_analyzer.py从而获得性能比较图（包括节点数和耗时）
-```
-python3 log_analyzer.py 
-`````
-
-![alt text](Figure_finally.png)
-
-### 2.6创建自定义导航规划器插件
+### 2.5创建自定义导航规划器插件
 1. 创建插件类，继承 nav2_core::GlobalPlanner，并实现其中的纯虚函数：
 
 ```
@@ -173,8 +154,48 @@ PLUGINLIB_EXPORT_CLASS(nav2_custom_planners::RRTOriginPlanner, nav2_core::Global
       RRTOriginPlanner:
         plugin: "nav2_custom_planner/RRTOriginPlanner"
 ```
+### 2.6各个插件在房间中的性能比较
+房间的建模：
+![alt text](room.jpg)
+先运行gazebo仿真环境：
+```
+ros2 launch fishbot_description gazebo_sim.launch.py
+```
+
+运行导航并收集日志信息：
+```
+ros2 launch fishbot_navigation2 navigation2.launch.py >${插件名}.log 
+```
+rrt_origin插件在房间中的性能表现(rviz显示随机树):
+![alt text](rrt_origin_room.gif)
+>
+rrt_dynamic_biased插件在房间中的性能表现(rviz显示随机树):
+![alt text](rrt_dynamic_biased_room.gif)
+>
+rrt_apf_guided插件在房间中的性能表现(rviz显示随机树):
+![alt text](rrt_apf_guided_room.gif)
+>
+rrt_adaptive_step插件在房间中的性能表现(rviz显示随机树):
+![alt text](rrt_adaptive_step_room.gif)
+>
+rrt_pruning插件在房间中的性能表现(rviz显示随机树):
+![alt text](rrt_pruning_room.gif)
+>
+rrt_bspline_smooth插件在房间中的性能表现(rviz显示随机树):
+![alt text](rrt_bspline_room.gif)
+>
+
+运行性能信息比较脚本log_analyzer.py从而获得性能比较图（包括节点数和耗时）
+```
+python3 log_analyzer.py 
+`````
+
+![alt text](Figure_finally.png)
+
 
 ### 2.7自定义导航规划器插件在窄通道中与nav2_navfn_planner的性能比较
+窄通道的建模：
+![alt text](narrow_corridor.jpg)
 nav2_navfn_planner在窄通道中的性能表现(gazebo仿真):
 ![navfn_planner通过窄通道](navfn_narrow_corridor.gif)
 nav2_navfn_planner在窄通道中的路径（rviz显示）：

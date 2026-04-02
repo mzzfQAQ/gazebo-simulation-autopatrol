@@ -96,7 +96,7 @@ namespace nav2_rrt_dynamic_biased_planner
         tree_marker.type = visualization_msgs::msg::Marker::LINE_LIST;
         tree_marker.action = visualization_msgs::msg::Marker::ADD;
         tree_marker.scale.x = 0.02;
-        tree_marker.color.r = 0.0; tree_marker.color.g = 0.8; tree_marker.color.b = 1.0; tree_marker.color.a = 0.5;
+        tree_marker.color.r = 0.0; tree_marker.color.g = 1.0; tree_marker.color.b = 0.0; tree_marker.color.a = 0.4;
         tree_marker.points.reserve(max_iterations * 2);
 
         bool found_goal = false;

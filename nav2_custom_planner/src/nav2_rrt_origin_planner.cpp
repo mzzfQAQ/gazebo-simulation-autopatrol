@@ -76,8 +76,8 @@ namespace nav2_rrt_origin_planner
         tree_marker.action = visualization_msgs::msg::Marker::ADD;
         tree_marker.pose.orientation.w = 1.0; // 必须设置合法的四元数
         tree_marker.scale.x = 0.02;           // 树枝的粗细
-        tree_marker.color.r = 0.0; tree_marker.color.g = 1.0; tree_marker.color.b = 1.0; 
-        tree_marker.color.a = 0.6;           // 透明度
+        tree_marker.color.r = 0.0; tree_marker.color.g = 1.0; tree_marker.color.b = 0.0; 
+        tree_marker.color.a = 0.4;           // 透明度
 
         // --- 3. RRT 参数设置 ---
         double step_size = 0.2;

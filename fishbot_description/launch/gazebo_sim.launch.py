@@ -8,8 +8,8 @@ def generate_launch_description():
     urdf_package_path = get_package_share_directory('fishbot_description')
     default_xacro_path = os.path.join(urdf_package_path,'urdf','fishbot/fishbot.urdf.xacro') 
     # default_rviz_path = os.path.join(urdf_package_path,'config','display_robot_model.rviz')
-    # default_gazebo_world_path = os.path.join(urdf_package_path,'world','custom_room.world')
-    default_gazebo_world_path = os.path.join(urdf_package_path,'world','narrow_corridor.world')
+    default_gazebo_world_path = os.path.join(urdf_package_path,'world','custom_room.world')
+    # default_gazebo_world_path = os.path.join(urdf_package_path,'world','narrow_corridor.world')
     # default_gazebo_world_path = os.path.join(urdf_package_path,'world','U_shaped_obstacle.world')
 
     # 声明一个 urdf 目录的默认参数，方便修改

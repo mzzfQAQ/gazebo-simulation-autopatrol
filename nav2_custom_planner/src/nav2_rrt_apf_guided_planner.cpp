@@ -44,7 +44,7 @@ namespace nav2_rrt_apf_guided_planner
         tree_marker.type = visualization_msgs::msg::Marker::LINE_LIST;
         tree_marker.action = visualization_msgs::msg::Marker::ADD;
         tree_marker.scale.x = 0.015; // 稍微细一点减少渲染压力
-        tree_marker.color.r = 0.0; tree_marker.color.g = 1.0; tree_marker.color.b = 0.5; tree_marker.color.a = 0.7;
+        tree_marker.color.r = 0.0; tree_marker.color.g = 1.0; tree_marker.color.b = 0.0; tree_marker.color.a = 0.4;
         tree_marker.pose.orientation.w = 1.0;
 
         // --- 核心算法参数 (使用 constexpr 提高编译器优化) ---
