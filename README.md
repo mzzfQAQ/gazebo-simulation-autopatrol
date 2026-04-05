@@ -166,23 +166,41 @@ ros2 launch fishbot_description gazebo_sim.launch.py
 ```
 ros2 launch fishbot_navigation2 navigation2.launch.py >${插件名}.log 
 ```
-rrt_origin插件在房间中的性能表现(rviz显示随机树):
+#### 2.6.1 rrt_origin插件在房间中的性能表现(rviz显示随机树):
 ![alt text](rrt_origin_room.gif)
+该插件的源码概念图：
+![alt text](rrt_origin_concept.png)
+其左侧直观地对比了局部与整体：上方展示了算法如何在单次迭代中，通过在地图中生成随机采样点 $q_{rand}$，并在现有树中寻找最近节点 $q_{near}$ 后，向该方向延伸固定步长 step_size 生成新节点 $q_{new}$，同时进行关键的碰撞检测；下方则描绘了绿色树枝在障碍物间隙中快速扩散、填充空间的整体过程，并高亮了最终通过 parent_idx 回溯得到的紫色有效路径。右侧流程图详细映射了代码的执行步骤，特别强调了代码中包含的 10% 目标导向采样（加速收敛）、基于插值的路径安全性检查，以及利用 visualization_msgs 实现的 RVIZ 实时可视化等关键优化技术。
 >
-rrt_dynamic_biased插件在房间中的性能表现(rviz显示随机树):
+#### 2.6.2 rrt_dynamic_biased插件在房间中的性能表现(rviz显示随机树):
 ![alt text](rrt_dynamic_biased_room.gif)
+该插件的源码概念图：
+![alt text](rrt_dynamic_biased_concept.png)
+相比于原版固定 10% 的目标导向概率，新算法引入了动态偏置机制，当树生长到目标点 $2.0m$ 范围内（proximity_threshold）时，会将向目标直接采样的概率从 10%（p_base）激增至 40%（p_close），产生一种强大的“磁吸效应”来加速收敛；同时，在底层实现上，新代码通过 tree.reserve() 预分配内存减少了系统开销，利用距离平方比较（min_dist_sq）规避了高耗能的开方计算，并优化了碰撞检测逻辑，这使得算法在迭代次数减少 40%（从 5000 降至 3000）的情况下，依然能以更短的时间和更精准的路径完成规划。
 >
-rrt_apf_guided插件在房间中的性能表现(rviz显示随机树):
+#### 2.6.3 rrt_apf_guided插件在房间中的性能表现(rviz显示随机树):
 ![alt text](rrt_apf_guided_room.gif)
+该插件的源码概念图：
+![alt text](rrt_apf_guided_concept.png)
+不同于上一版仅在采样概率上做简单的阶梯式切换，新算法采用了基于距离比例的连续线性偏置函数，使搜索过程更加平滑自然；更核心的差异在于节点生成的逻辑，新代码引入了人工势场（APF），通过计算目标点的引力和局部障碍物的斥力合力，对新节点位置进行实时微调（nx += 0.1 * fx），使路径在生长阶段就能主动避开高代价边缘；此外，为了在增加复杂势场计算的同时保持高性能，算法将斥力感知的搜索半径限制在 $5 \times 5$ 的极小窗口内，并利用 constexpr 常量和预分配内存等手段，确保了在更智能的路径寻优下依然具备极快的响应速度。
 >
-rrt_adaptive_step插件在房间中的性能表现(rviz显示随机树):
+#### 2.6.4 rrt_adaptive_step插件在房间中的性能表现(rviz显示随机树):
 ![alt text](rrt_adaptive_step_room.gif)
+该插件的源码概念图：
+![alt text](rrt_adaptive_step_concept.png)
+相较于上一版仅能改变方向的“固定步幅”引导，新算法核心引入了基于代价地图的自适应步长机制，通过 getCost 实时感知环境拥挤度，使机器人在开阔区域能以大步长（s_max）快速扩张，而在接近障碍物时则自动切换为小步长（s_min）进行精细探路；在底层效率上，新版本对势场触发逻辑进行了精简，仅在 Cost > 50 的潜在危险区域激活 APF 计算，并配合快速跳跃式连线检测（每 2 个 cell 采样一次），在维持路径高度智能与安全性的同时，显著降低了算法的计算负荷。
 >
-rrt_pruning插件在房间中的性能表现(rviz显示随机树):
+#### 2.6.5 rrt_pruning插件在房间中的性能表现(rviz显示随机树):
 ![alt text](rrt_pruning_room.gif)
+该插件的源码概念图：
+![alt text](rrt_pruning_concept.png)
+相较于上一版专注于生长阶段步长自适应的策略，新算法的核心突破在于引入了强大的后期处理优化阶段。它在保留距离敏感动态偏置的基础上，通过**贪婪剪枝逻辑（Greedy Pruning）**主动消除原始 RRT 路径中冗余的“锯齿”点，利用 isLineClear 射线检测尝试跨节点直连以寻求几何最短路径；随后，通过 0.1m 分辨率的线性插值，将剪枝后稀疏的转角点重新转化为分布均匀、利于控制器跟踪的平滑轨迹。这种从“随机折线”到“极简直线段”的进化，配合更稳健的 QoS 通信策略，使得最终生成的路径在保持搜索效率的同时，具备了远超前代的运动平稳性。
 >
-rrt_bspline_smooth插件在房间中的性能表现(rviz显示随机树):
+#### 2.6.6 rrt_bspline_smooth插件在房间中的性能表现(rviz显示随机树):
 ![alt text](rrt_bspline_room.gif)
+该插件的源码概念图：
+![alt text](rrt_bspline_concept.png)
+相比于上一版仅能生成锐利折线的剪枝策略，新算法在保留贪婪剪枝骨干的基础上，引入了三次 B 样条（B-Spline）拟合技术，通过二阶连续的基函数将离散控制点转化为圆润、丝滑的 $C^2$ 路径，彻底消除了机器人转弯时的角速度突变。在搜索策略上，它将偏置逻辑从空间敏感转为时间（迭代次数）敏感，使算法在遭遇复杂地形时能随时间推移自动增强探索驱动力；配合首尾重复点的边界约束处理，该规划器在确保路径严格闭合的同时，为底层控制器提供了符合物理惯性且极具动态美感的导航轨迹。
 >
 
 运行性能信息比较脚本log_analyzer.py从而获得性能比较图（包括节点数和耗时）
