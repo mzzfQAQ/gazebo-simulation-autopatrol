@@ -19,7 +19,7 @@ def generate_launch_description():
     use_sim_time = launch.substitutions.LaunchConfiguration(
         'use_sim_time', default='true')
     map_yaml_path = launch.substitutions.LaunchConfiguration(
-        'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'room.yaml'))
+        'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'bigger_room.yaml'))
     # map_yaml_path = launch.substitutions.LaunchConfiguration(
         # 'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'narrow_corridor.yaml'))
     # map_yaml_path = launch.substitutions.LaunchConfiguration(

@@ -90,6 +90,11 @@ ros2 run nav2_planner planner_server --ros-args --params-file /home/lrm/chapt8/c
     default_gazebo_world_path = os.path.join(urdf_package_path,'world','narrow_corridor.world')
 ```
 
+修改完后编译，然后启动仿真
+```
+ros2 launch fishbot_description gazebo_sim.launch.py
+```
+
 扫图完成后会在当前目录下生成一个map.pgm和map.yaml文件，分别是地图图像和地图元数据文件。将它们移动到fishbot_navigation2的maps目录下，并修改nav2_params.yaml中的地图路径参数：
 
 ```
@@ -98,9 +103,9 @@ ros2 run nav2_planner planner_server --ros-args --params-file /home/lrm/chapt8/c
       yaml_filename: "/home/lrm/BISHE_WS/src/fishbot_navigation2/maps/map.yaml"
 ```
 
-启动fishbot_navigation2导航功能包中的slam_rviz2.launch.py手动操控扫图
+启动fishbot_navigation2导航功能包中的slam_rviz.launch.py手动操控扫图
 ```
-ros2 launch fishbot_navigation2 slam_rviz2.launch.py
+ros2 launch fishbot_navigation2 slam_rviz.launch.py
 ```
 
 扫图结束后在改路径：~/BISHE_WS/src/fishbot_navigation2/maps下输入：
@@ -202,7 +207,7 @@ ros2 launch fishbot_navigation2 navigation2.launch.py >${插件名}.log
 相较于上一版专注于生长阶段步长自适应的策略，新算法的核心突破在于引入了强大的后期处理优化阶段。它在保留距离敏感动态偏置的基础上，通过**贪婪剪枝逻辑（Greedy Pruning）**主动消除原始 RRT 路径中冗余的“锯齿”点，利用 isLineClear 射线检测尝试跨节点直连以寻求几何最短路径；随后，通过 0.1m 分辨率的线性插值，将剪枝后稀疏的转角点重新转化为分布均匀、利于控制器跟踪的平滑轨迹。这种从“随机折线”到“极简直线段”的进化，配合更稳健的 QoS 通信策略，使得最终生成的路径在保持搜索效率的同时，具备了远超前代的运动平稳性。
 >
 #### 2.6.6 rrt_bspline_smooth插件在房间中的性能表现(rviz显示随机树):
-![alt text](rrt_bspline_room.gif)
+
 >
 该插件的源码概念图：
 ![alt text](rrt_bspline_concept.png)

@@ -14,20 +14,26 @@ void RRTBSplineSmoothPlanner::configure(
   std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 {
-  node_ = parent.lock();
+  node_ = parent;
+  auto node = node_.lock();
+  if (!node) {
+    throw std::runtime_error("Unable to lock node in configure!");
+  }
+
   name_ = name;
   tf_ = tf;
   costmap_ = costmap_ros->getCostmap();
   global_frame_ = costmap_ros->getGlobalFrameID();
 
   auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable();
-  marker_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("/rrt_tree_markers", qos);
+  // 注意：此处使用锁定后的 node 指针
+  marker_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("/rrt_tree_markers", qos);
   
-  RCLCPP_INFO(node_->get_logger(), "RRTBSplineSmoothPlanner (迭代敏感偏置 + 剪枝 + B样条) 已配置。");
+  RCLCPP_INFO(node->get_logger(), "RRTBSplineSmoothPlanner (动态偏置+剪枝+B样条) 配置完成。");
 }
 
-void RRTBSplineSmoothPlanner::activate() { marker_pub_->on_activate(); }
-void RRTBSplineSmoothPlanner::deactivate() { marker_pub_->on_deactivate(); }
+void RRTBSplineSmoothPlanner::activate() { if(marker_pub_) marker_pub_->on_activate(); }
+void RRTBSplineSmoothPlanner::deactivate() { if(marker_pub_) marker_pub_->on_deactivate(); }
 void RRTBSplineSmoothPlanner::cleanup() { marker_pub_.reset(); }
 
 bool RRTBSplineSmoothPlanner::isLineClear(double x1, double y1, double x2, double y2)
@@ -36,8 +42,9 @@ bool RRTBSplineSmoothPlanner::isLineClear(double x1, double y1, double x2, doubl
   double res = costmap_->getResolution();
   int steps = static_cast<int>(dist / res);
   for (int i = 0; i <= steps; ++i) {
-    double px = x1 + (x2 - x1) * (static_cast<double>(i) / (steps > 0 ? steps : 1));
-    double py = y1 + (y2 - y1) * (static_cast<double>(i) / (steps > 0 ? steps : 1));
+    double t = static_cast<double>(i) / (steps > 0 ? steps : 1);
+    double px = x1 + (x2 - x1) * t;
+    double py = y1 + (y2 - y1) * t;
     unsigned int mx, my;
     if (!costmap_->worldToMap(px, py, mx, my) || costmap_->getCost(mx, my) >= 253) {
       return false;
@@ -52,7 +59,6 @@ std::vector<geometry_msgs::msg::PoseStamped> RRTBSplineSmoothPlanner::bsplineSmo
 {
   std::vector<geometry_msgs::msg::PoseStamped> smooth_path;
   int n = control_points.size();
-
   if (n < 4) return control_points;
 
   for (int i = 0; i < n - 3; ++i) {
@@ -87,8 +93,11 @@ nav_msgs::msg::Path RRTBSplineSmoothPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal)
 {
+  auto node = node_.lock();
+  if (!node) return nav_msgs::msg::Path();
+
   auto start_time_clock = std::chrono::steady_clock::now();
-  auto current_time = node_->now(); 
+  auto current_time = node->now(); 
 
   nav_msgs::msg::Path global_path;
   global_path.header.stamp = current_time;
@@ -118,11 +127,8 @@ nav_msgs::msg::Path RRTBSplineSmoothPlanner::createPlan(
 
   bool found = false;
   const int max_iter = 2000;
-  int iterations = 0;
 
-  for (; iterations < max_iter; ++iterations) {
-    // --- 核心修改：迭代次数敏感型动态目标偏置 ---
-    // 逻辑：随着迭代次数增加，p_bias 从 0.1 线性增加到 0.5
+  for (int iterations = 0; iterations < max_iter; ++iterations) {
     double iter_ratio = static_cast<double>(iterations) / max_iter;
     double p_bias = 0.1 + (0.4 * iter_ratio);
 
@@ -148,14 +154,13 @@ nav_msgs::msg::Path RRTBSplineSmoothPlanner::createPlan(
       p2.x = nx; p2.y = ny; p2.z = 0.1;
       tree_marker.points.push_back(p1); tree_marker.points.push_back(p2);
 
-      double d_to_goal_sq = std::pow(nx - gx, 2) + std::pow(ny - gy, 2);
-      if (d_to_goal_sq < 0.16) { 
+      if (std::pow(nx - gx, 2) + std::pow(ny - gy, 2) < 0.16) { 
         found = true; break;
       }
     }
   }
 
-  marker_pub_->publish(tree_marker);
+  if(marker_pub_) marker_pub_->publish(tree_marker);
 
   if (found) {
     std::vector<geometry_msgs::msg::PoseStamped> raw_path;
@@ -170,13 +175,7 @@ nav_msgs::msg::Path RRTBSplineSmoothPlanner::createPlan(
     }
     std::reverse(raw_path.begin(), raw_path.end());
 
-    geometry_msgs::msg::PoseStamped exact_goal = goal;
-    exact_goal.header = global_path.header;
-    if (std::hypot(raw_path.back().pose.position.x - gx, raw_path.back().pose.position.y - gy) > 0.05) {
-        raw_path.push_back(exact_goal);
-    }
-
-    // 1. 剪枝逻辑 (Greedy Pruning)
+    // 1. 贪婪剪枝
     std::vector<geometry_msgs::msg::PoseStamped> pruned;
     if (!raw_path.empty()) {
       pruned.push_back(raw_path.front());
@@ -194,27 +193,21 @@ nav_msgs::msg::Path RRTBSplineSmoothPlanner::createPlan(
       }
     }
 
-    // 2. B 样条平滑
+    // 2. B样条平滑处理控制点
     std::vector<geometry_msgs::msg::PoseStamped> control_points = pruned;
-    
     if (control_points.size() >= 2) {
       control_points.insert(control_points.begin(), 2, pruned.front());
       control_points.insert(control_points.end(), 2, pruned.back());
     }
 
     global_path.poses = bsplineSmooth(control_points, 10);
-
-    if (global_path.poses.empty()) {
-      global_path.poses = pruned;
-    }
+    if (global_path.poses.empty()) global_path.poses = pruned;
 
     auto duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_time_clock).count();
-    RCLCPP_INFO(node_->get_logger(), 
-      "RRT-B样条平滑 成功 | 原始节点: %ld | 剪枝后: %ld | 平滑节点: %ld | 耗时: %.2f ms", 
-      raw_path.size(), pruned.size(), global_path.poses.size(), duration);
+    RCLCPP_INFO(node->get_logger(), "规划成功 | 耗时: %.2f ms", duration);
   } else {
     auto duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_time_clock).count();
-    RCLCPP_WARN(node_->get_logger(), "RRT-B样条平滑 失败 | 耗时: %.2f ms", duration);
+    RCLCPP_WARN(node->get_logger(), "规划失败 | 耗时: %.2f ms", duration);
   }
 
   return global_path;

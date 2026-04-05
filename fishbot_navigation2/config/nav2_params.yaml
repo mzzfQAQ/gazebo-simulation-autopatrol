@@ -292,8 +292,8 @@ planner_server:
       # plugin: "nav2_rrt_dynamic_biased_planner/RRTDynamicBiasedPlanner" #动态偏置RRT算法
       # plugin: "nav2_rrt_apf_guided_planner/RRTAPFGuidedPlanner" #APF引导RRT算法
       # plugin: "nav2_rrt_adaptive_step_planner/RRTAdaptiveStepPlanner" #自适应步长RRT算法
-      plugin: "nav2_rrt_pruning_planner/RRTPruningPlanner" #RRT剪枝规划器
-      # plugin: "nav2_rrt_bspline_smooth_planner/RRTBSplineSmoothPlanner" #B样条RRT规划器
+      # plugin: "nav2_rrt_pruning_planner/RRTPruningPlanner" #RRT剪枝规划器
+      plugin: "nav2_rrt_bspline_smooth_planner/RRTBSplineSmoothPlanner" #B样条RRT规划器
       
       # plugin: "nav2_rrt_connect_planner/RRTConnectPlanner" #RRT Connect规划器（为窄通道而生）
       # plugin: "nav2_rrt_connect_smooth_planner/RRTConnectSmoothPlanner" #RRT Connect平滑规划器（为窄通道而生，且路径更平滑）
