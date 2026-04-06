@@ -1,8 +1,8 @@
-# 基于 ROS 2 和 Navigation 2 自动巡检机器人
+# 基于 ROS 2 和 Navigation 2 康养巡检机器人
 
 ## 1.项目介绍
 
-本项目基于 ROS 2 和  Navigation 2 设计了一个自动巡检机器人仿真功能。
+本项目基于 ROS 2 和  Navigation 2 设计了一个养护巡检机器人仿真功能。
 
 该巡检机器人要能够在不同的目标点之间进行循环移动，每到达一个目标点后首先通过语音播放到达的目标点信息，接着通过摄像头采集一张实时的图像并保存到本地。
 
@@ -256,6 +256,44 @@ U型陷阱的建模：
 >
 选择 U 型陷阱是为了测试算法在**局部最优陷阱**中的“脱困”能力：它利用目标点与陷阱底部的直线距离诱导，检验算法能否识破这种“近在咫尺却不可达”的假象，从而主动向远离目标的区域进行全局搜索；对于轮式小车而言，这更是评估其**非完整性约束处理能力**的关键，考察算法能否在狭窄死胡同内规划出符合转弯半径的调头或倒车路径，从而验证算法在复杂空间布局下的探索完备性与路径逻辑性。
 >
+
+### 2.9 基于 YOLOv8 的目标检测与视觉感知联合部署
+>
+#### 2.9.1 依赖安装与环境配置
+YOLOv8 的运行依赖官方 ultralytics 库。为了与 ROS 2 Humble 的图像处理模块（如 cv_bridge）完美兼容，必须严格控制 NumPy 的版本，避免底层 C++ 接口冲突。
+1. 安装 YOLOv8 核心库：
+```bash
+pip3 install ultralytics -i [https://pypi.tuna.tsinghua.edu.cn/simple](https://pypi.tuna.tsinghua.edu.cn/simple)
+```
+2. **(关键修复)** 强制降级 NumPy 至 1.x 版本以适配 ROS 2 Humble，避免出现 `_ARRAY_API not found` 崩溃：
+```bash
+pip3 install "numpy<2" --force-reinstall -i [https://pypi.tuna.tsinghua.edu.cn/simple](https://pypi.tuna.tsinghua.edu.cn/simple)
+```
+
+#### 2.9.2 运行 YOLO 视觉节点
+
+该视觉感知功能由独立的功能包 `yolo_ros2_pkg` 提供支持，实现了感知层与导航底盘控制的解耦。
+
+开启一个新终端，运行 YOLO 节点：
+```bash
+source install/setup.bash
+ros2 run yolo_ros2_pkg yolo_node
+```
+*(节点首次启动时会自动下载 `yolov8n.pt` 轻量化权重模型)*
+
+#### 2.9.3 可视化与联调
+
+YOLO 节点会持续订阅底盘相机 `/camera_sensor/image_raw`，完成推理后，将带有检测框的图像发布至 `/yolo/annotated_image` 话题。
+
+使用 rqt_image_view 工具实时查看检测结果：
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+在弹出的界面中选择 `/yolo/annotated_image` 话题，即可看到机器人第一视角的实时目标追踪画面。
+
+> **技术笔记：感知与导航的解耦架构**
+> 本项目没有将深度学习推理直接耦合进底盘导航的业务节点中，而是采用了松耦合的话题（Topic）通信架构。`yolo_node` 作为“视觉大脑”独立处理高负载的图像推理任务；而自动巡检节点（`PatrolNode`）作为“决策身体”，只需订阅处理后的图像进行记录，或接收目标坐标信息，从而有效防止了因推理计算耗时导致 Nav2 导航控制频率下降或超时的问题。
+
 
 ## 3.原作者(感谢鱼香ROS提供的基础框架)
 
