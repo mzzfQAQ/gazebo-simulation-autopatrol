@@ -19,8 +19,8 @@ class PersonPatrolNode(Node):
         self.state_start_time = time.time()
         
         # 运动参数设置
-        self.walk_speed = 0.1      # 走路速度 0.1 m/s
-        self.walk_duration = 10.0  # 每次直走 10 秒 (即单程 5 米)
+        self.walk_speed = 0.2      # 走路速度 0.2 m/s
+        self.walk_duration = 30.0  # 每次直走 30 秒 (即单程 3 米)
         self.turn_speed = 1.0      # 转身角速度 1.0 rad/s
         self.turn_duration = 3.14  # 转身持续时间 3.14 秒 (刚好转 180 度)
 
@@ -32,7 +32,7 @@ class PersonPatrolNode(Node):
         elapsed_time = current_time - self.state_start_time
 
         if self.state == 'WALK':
-            msg.linear.x = self.walk_speed
+            msg.linear.y = -self.walk_speed
             msg.angular.z = 0.0
             
             # 如果直走时间够了，切换到转身状态
@@ -42,7 +42,7 @@ class PersonPatrolNode(Node):
                 self.get_logger().info('到达巡逻边界，开始转身...')
 
         elif self.state == 'TURN':
-            msg.linear.x = 0.0
+            msg.linear.y = 0.0
             msg.angular.z = self.turn_speed
             
             # 如果转身时间够了，切换回直走状态
