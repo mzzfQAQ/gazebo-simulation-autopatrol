@@ -79,6 +79,19 @@ source install/setup.bash
 ros2 launch autopatrol_robot autopatrol.launch.py
 ```
 
+运行YOLO节点
+
+```
+ros2 run yolo_ros2_pkg yolo_node 
+```
+
+打开rqt观看YOLO节点的输出
+
+```
+ros2 run rqt_image_view rqt_image_view
+```
+
+
 运行planner_server以显示错误
 ```
 ros2 run nav2_planner planner_server --ros-args --params-file /home/lrm/chapt8/chapt8_ws/src/fishbot_navigation2/config/nav2_params.yaml

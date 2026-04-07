@@ -1,5 +1,9 @@
 #include "nav2_custom_planner/nav2_rrt_connect_smooth_planner.hpp"
 #include "nav2_util/node_utils.hpp"
+#include <cmath>
+#include <random>
+#include <algorithm>
+#include <chrono>
 #include "pluginlib/class_list_macros.hpp"
 
 namespace nav2_rrt_connect_smooth_planner
@@ -7,215 +11,278 @@ namespace nav2_rrt_connect_smooth_planner
 
 void RRTConnectSmoothPlanner::configure(
   const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-  std::string name, std::shared_ptr<tf2_ros::Buffer> /*tf*/,
+  std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 {
-  auto node = parent.lock();
-  logger_ = node->get_logger();
-  costmap_ros_ = costmap_ros;
-  costmap_ = costmap_ros_->getCostmap();
-  name_ = name;
+  node_ = parent;
+  auto node = node_.lock();
+  if (!node) {
+    throw std::runtime_error("Unable to lock node in configure!");
+  }
 
-  nav2_util::declare_parameter_if_not_declared(node, name + ".step_size", rclcpp::ParameterValue(0.2));
-  node->get_parameter(name + ".step_size", step_size_);
-  nav2_util::declare_parameter_if_not_declared(node, name + ".max_iterations", rclcpp::ParameterValue(5000));
-  node->get_parameter(name + ".max_iterations", max_iterations_);
-  nav2_util::declare_parameter_if_not_declared(node, name + ".connection_threshold", rclcpp::ParameterValue(0.5));
-  node->get_parameter(name + ".connection_threshold", connection_threshold_);
-  nav2_util::declare_parameter_if_not_declared(node, name + ".interpolation_resolution", rclcpp::ParameterValue(0.05));
-  node->get_parameter(name + ".interpolation_resolution", interpolation_resolution_);
+  name_ = name;
+  tf_ = tf;
+  costmap_ = costmap_ros->getCostmap();
+  global_frame_ = costmap_ros->getGlobalFrameID();
+
+  auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable();
+  // 注意：在 .hpp 中 marker_pub_ 必须声明为 rclcpp_lifecycle::LifecyclePublisher
+  marker_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("/rrt_tree_markers", qos);
   
-  marker_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
-  RCLCPP_INFO(logger_, "RRTConnectSmoothPlanner: Configured.");
+  RCLCPP_INFO(node->get_logger(), "RRTConnectSmoothPlanner (防切角优化+红蓝Marker) 配置完成。");
 }
 
+void RRTConnectSmoothPlanner::activate() { if(marker_pub_) marker_pub_->on_activate(); }
+void RRTConnectSmoothPlanner::deactivate() { if(marker_pub_) marker_pub_->on_deactivate(); }
 void RRTConnectSmoothPlanner::cleanup() { marker_pub_.reset(); }
-void RRTConnectSmoothPlanner::activate() { }
-void RRTConnectSmoothPlanner::deactivate() { }
+
+bool RRTConnectSmoothPlanner::isLineClear(double x1, double y1, double x2, double y2)
+{
+  double dist = std::hypot(x2 - x1, y2 - y1);
+  double res = costmap_->getResolution();
+  int steps = static_cast<int>(dist / res);
+  
+  // 阈值越小，路径越会被逼向宽阔的低代价区域（门中间）
+  // 默认设置为 150。如果发现完全无法通过窄门，可以适当调高至 180 或 200
+  unsigned char max_allowed_cost = 5; 
+  
+  for (int i = 0; i <= steps; ++i) {
+    double t = static_cast<double>(i) / (steps > 0 ? steps : 1);
+    double px = x1 + (x2 - x1) * t;
+    double py = y1 + (y2 - y1) * t;
+    unsigned int mx, my;
+    if (!costmap_->worldToMap(px, py, mx, my) || costmap_->getCost(mx, my) >= max_allowed_cost) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<geometry_msgs::msg::PoseStamped> RRTConnectSmoothPlanner::bsplineSmooth(
+  const std::vector<geometry_msgs::msg::PoseStamped> & control_points,
+  int sample_num)
+{
+  std::vector<geometry_msgs::msg::PoseStamped> smooth_path;
+  int n = control_points.size();
+  if (n < 4) return control_points;
+
+  for (int i = 0; i < n - 3; ++i) {
+    for (int j = 0; j <= sample_num; ++j) {
+      double t = static_cast<double>(j) / sample_num;
+      double t2 = t * t;
+      double t3 = t * t * t;
+
+      double b0 = (1.0 - 3.0 * t + 3.0 * t2 - t3) / 6.0;
+      double b1 = (4.0 - 6.0 * t2 + 3.0 * t3) / 6.0;
+      double b2 = (1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3) / 6.0;
+      double b3 = t3 / 6.0;
+
+      geometry_msgs::msg::PoseStamped p;
+      p.header = control_points[0].header;
+      p.pose.position.x = b0 * control_points[i].pose.position.x +
+                          b1 * control_points[i + 1].pose.position.x +
+                          b2 * control_points[i + 2].pose.position.x +
+                          b3 * control_points[i + 3].pose.position.x;
+      p.pose.position.y = b0 * control_points[i].pose.position.y +
+                          b1 * control_points[i + 1].pose.position.y +
+                          b2 * control_points[i + 2].pose.position.y +
+                          b3 * control_points[i + 3].pose.position.y;
+      p.pose.orientation.w = 1.0;
+      smooth_path.push_back(p);
+    }
+  }
+  return smooth_path;
+}
 
 nav_msgs::msg::Path RRTConnectSmoothPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal)
 {
-  costmap_ = costmap_ros_->getCostmap();
+  auto node = node_.lock();
+  if (!node) return nav_msgs::msg::Path();
+
+  auto start_time_clock = std::chrono::steady_clock::now();
+  auto current_time = node->now(); 
+
   nav_msgs::msg::Path global_path;
-  global_path.header.stamp = rclcpp::Clock().now();
-  global_path.header.frame_id = start.header.frame_id;
+  global_path.header.stamp = current_time;
+  global_path.header.frame_id = global_frame_;
 
-  // 初始化双树
-  std::vector<Node> start_tree, goal_tree;
-  start_tree.push_back({start.pose.position.x, start.pose.position.y, -1});
-  goal_tree.push_back({goal.pose.position.x, goal.pose.position.y, -1});
+  // 起点树的可视化 Marker (蓝色)
+  visualization_msgs::msg::Marker marker_start;
+  marker_start.header.frame_id = global_frame_;
+  marker_start.header.stamp = current_time;
+  marker_start.ns = "rrt_tree_start";
+  marker_start.id = 0;
+  marker_start.type = visualization_msgs::msg::Marker::LINE_LIST;
+  marker_start.action = visualization_msgs::msg::Marker::ADD;
+  marker_start.scale.x = 0.015;
+  marker_start.color.r = 0.0; marker_start.color.g = 0.0; marker_start.color.b = 1.0; marker_start.color.a = 0.6;
 
-  std::default_random_engine gen((std::random_device())());
-  std::uniform_real_distribution<double> dis_x(costmap_->getOriginX(), costmap_->getOriginX() + costmap_->getSizeInMetersX());
-  std::uniform_real_distribution<double> dis_y(costmap_->getOriginY(), costmap_->getOriginY() + costmap_->getSizeInMetersY());
+  // 终点树的可视化 Marker (红色)
+  visualization_msgs::msg::Marker marker_goal = marker_start;
+  marker_goal.ns = "rrt_tree_goal";
+  marker_goal.id = 1; 
+  marker_goal.color.r = 1.0; marker_goal.color.g = 0.0; marker_goal.color.b = 0.0; marker_goal.color.a = 0.6;
 
-  bool connected = false;
-  int start_node_final_idx = -1;
-  int goal_node_final_idx = -1;
-  bool start_is_A = true; 
+  std::vector<Node> tree_start;
+  std::vector<Node> tree_goal;
+  tree_start.reserve(3000);
+  tree_goal.reserve(3000);
+  
+  tree_start.emplace_back(start.pose.position.x, start.pose.position.y, -1);
+  tree_goal.emplace_back(goal.pose.position.x, goal.pose.position.y, -1);
 
-  // --- 核心搜索循环：完全保留你的原始逻辑 ---
-  for (int i = 0; i < max_iterations_; ++i) {
-    Node rand_node = {dis_x(gen), dis_y(gen), -1};
-    Node new_node_current;
+  std::vector<Node>* tree_A = &tree_start;
+  std::vector<Node>* tree_B = &tree_goal;
 
-    if (extendTree(start_tree, rand_node, new_node_current)) {
-      Node new_node_other;
-      // 尝试让树 B 向树 A 的最新节点连接
-      if (extendTree(goal_tree, start_tree.back(), new_node_other)) {
-        if (getDistance(start_tree.back(), goal_tree.back()) < connection_threshold_) {
-          connected = true;
-          start_node_final_idx = start_is_A ? (static_cast<int>(start_tree.size()) - 1) : (static_cast<int>(goal_tree.size()) - 1);
-          goal_node_final_idx = start_is_A ? (static_cast<int>(goal_tree.size()) - 1) : (static_cast<int>(start_tree.size()) - 1);
-          break;
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<> dis_x(costmap_->getOriginX(), costmap_->getOriginX() + costmap_->getSizeInMetersX());
+  std::uniform_real_distribution<> dis_y(costmap_->getOriginY(), costmap_->getOriginY() + costmap_->getSizeInMetersY());
+  std::uniform_real_distribution<> dis_prob(0.0, 1.0);
+
+  bool found = false;
+  // 专门针对狭窄通道进行的优化：提升迭代次数，减小步长
+  const int max_iter = 10000; 
+  const double step = 0.15; 
+
+  for (int iterations = 0; iterations < max_iter; ++iterations) {
+    double iter_ratio = static_cast<double>(iterations) / max_iter;
+    double p_bias = 0.1 + (0.4 * iter_ratio);
+
+    // 动态偏置指向另一棵树的根
+    double rx = (dis_prob(gen) < p_bias) ? (*tree_B)[0].x : dis_x(gen);
+    double ry = (dis_prob(gen) < p_bias) ? (*tree_B)[0].y : dis_y(gen);
+
+    int nearest_A = 0; double min_d_sq = 1e9;
+    for (size_t j = 0; j < tree_A->size(); ++j) {
+      double d_sq = std::pow((*tree_A)[j].x - rx, 2) + std::pow((*tree_A)[j].y - ry, 2);
+      if (d_sq < min_d_sq) { min_d_sq = d_sq; nearest_A = j; }
+    }
+
+    double angle = std::atan2(ry - (*tree_A)[nearest_A].y, rx - (*tree_A)[nearest_A].x);
+    double nx = (*tree_A)[nearest_A].x + step * std::cos(angle);
+    double ny = (*tree_A)[nearest_A].y + step * std::sin(angle);
+
+    if (isLineClear((*tree_A)[nearest_A].x, (*tree_A)[nearest_A].y, nx, ny)) {
+      tree_A->emplace_back(nx, ny, nearest_A);
+      
+      geometry_msgs::msg::Point p1, p2;
+      p1.x = (*tree_A)[nearest_A].x; p1.y = (*tree_A)[nearest_A].y; p1.z = 0.1;
+      p2.x = nx; p2.y = ny; p2.z = 0.1;
+      
+      auto& active_marker = (tree_A == &tree_start) ? marker_start : marker_goal;
+      active_marker.points.push_back(p1); active_marker.points.push_back(p2);
+
+      int nearest_B = 0; min_d_sq = 1e9;
+      for (size_t j = 0; j < tree_B->size(); ++j) {
+        double d_sq = std::pow((*tree_B)[j].x - nx, 2) + std::pow((*tree_B)[j].y - ny, 2);
+        if (d_sq < min_d_sq) { min_d_sq = d_sq; nearest_B = j; }
+      }
+
+      if (isLineClear((*tree_B)[nearest_B].x, (*tree_B)[nearest_B].y, nx, ny)) {
+        tree_B->emplace_back(nx, ny, nearest_B);
+        
+        geometry_msgs::msg::Point p3, p4;
+        p3.x = (*tree_B)[nearest_B].x; p3.y = (*tree_B)[nearest_B].y; p3.z = 0.1;
+        p4.x = nx; p4.y = ny; p4.z = 0.1;
+        
+        auto& passive_marker = (tree_B == &tree_start) ? marker_start : marker_goal;
+        passive_marker.points.push_back(p3); passive_marker.points.push_back(p4);
+        
+        found = true; 
+        break;
+      } else {
+        double angle_B = std::atan2(ny - (*tree_B)[nearest_B].y, nx - (*tree_B)[nearest_B].x);
+        double nbx = (*tree_B)[nearest_B].x + step * std::cos(angle_B);
+        double nby = (*tree_B)[nearest_B].y + step * std::sin(angle_B);
+        if (isLineClear((*tree_B)[nearest_B].x, (*tree_B)[nearest_B].y, nbx, nby)) {
+          tree_B->emplace_back(nbx, nby, nearest_B);
+          
+          geometry_msgs::msg::Point p3, p4;
+          p3.x = (*tree_B)[nearest_B].x; p3.y = (*tree_B)[nearest_B].y; p3.z = 0.1;
+          p4.x = nbx; p4.y = nby; p4.z = 0.1;
+          
+          auto& passive_marker = (tree_B == &tree_start) ? marker_start : marker_goal;
+          passive_marker.points.push_back(p3); passive_marker.points.push_back(p4);
         }
       }
     }
-    std::swap(start_tree, goal_tree);
-    start_is_A = !start_is_A;
+    std::swap(tree_A, tree_B);
   }
 
-  publishTree(start_is_A ? start_tree : goal_tree, start_is_A ? goal_tree : start_tree, start.header.frame_id);
+  // 分别发布两棵树的可视化 Marker
+  if(marker_pub_) {
+    marker_pub_->publish(marker_start);
+    marker_pub_->publish(marker_goal);
+  }
 
-  if (connected) {
-    std::vector<Node>& real_start_tree = start_is_A ? start_tree : goal_tree;
-    std::vector<Node>& real_goal_tree = start_is_A ? goal_tree : start_tree;
-
-    // 回溯路径
-    int curr = start_node_final_idx;
-    while (curr != -1) {
+  if (found) {
+    std::vector<geometry_msgs::msg::PoseStamped> raw_path;
+    
+    std::vector<geometry_msgs::msg::PoseStamped> path_start;
+    int curr_s = tree_start.size() - 1;
+    while (curr_s != -1) {
       geometry_msgs::msg::PoseStamped p;
-      p.pose.position.x = real_start_tree[curr].x; p.pose.position.y = real_start_tree[curr].y;
-      global_path.poses.push_back(p);
-      curr = real_start_tree[curr].parent_idx;
+      p.header = global_path.header;
+      p.pose.position.x = tree_start[curr_s].x; p.pose.position.y = tree_start[curr_s].y;
+      p.pose.orientation.w = 1.0;
+      path_start.push_back(p);
+      curr_s = tree_start[curr_s].parent_idx;
     }
-    std::reverse(global_path.poses.begin(), global_path.poses.end());
+    std::reverse(path_start.begin(), path_start.end());
 
-    curr = goal_node_final_idx;
-    while (curr != -1) {
+    std::vector<geometry_msgs::msg::PoseStamped> path_goal;
+    int curr_g = tree_goal.back().parent_idx; 
+    while (curr_g != -1) {
       geometry_msgs::msg::PoseStamped p;
-      p.pose.position.x = real_goal_tree[curr].x; p.pose.position.y = real_goal_tree[curr].y;
-      global_path.poses.push_back(p);
-      curr = real_goal_tree[curr].parent_idx;
+      p.header = global_path.header;
+      p.pose.position.x = tree_goal[curr_g].x; p.pose.position.y = tree_goal[curr_g].y;
+      p.pose.orientation.w = 1.0;
+      path_goal.push_back(p);
+      curr_g = tree_goal[curr_g].parent_idx;
     }
 
-    // --- 只有在成功生成原始路径后才进行优化 ---
-    if (global_path.poses.size() > 2) {
-      optimizePath(global_path); // 剪枝
-      smoothPath(global_path, interpolation_resolution_); // 平滑
+    raw_path.insert(raw_path.end(), path_start.begin(), path_start.end());
+    raw_path.insert(raw_path.end(), path_goal.begin(), path_goal.end());
+
+    // 1. 贪婪剪枝
+    std::vector<geometry_msgs::msg::PoseStamped> pruned;
+    if (!raw_path.empty()) {
+      pruned.push_back(raw_path.front());
+      size_t curr_idx = 0;
+      while (curr_idx < raw_path.size() - 1) {
+        bool jump = false;
+        for (size_t t = raw_path.size() - 1; t > curr_idx; --t) {
+          if (isLineClear(raw_path[curr_idx].pose.position.x, raw_path[curr_idx].pose.position.y,
+                          raw_path[t].pose.position.x, raw_path[t].pose.position.y)) {
+            pruned.push_back(raw_path[t]);
+            curr_idx = t; jump = true; break;
+          }
+        }
+        if (!jump) { curr_idx++; pruned.push_back(raw_path[curr_idx]); }
+      }
     }
 
-    // --- 计算朝向：这是 Nav2 控制器成功的关键 ---
-    for (size_t i = 0; i < global_path.poses.size(); ++i) {
-      double yaw = (i < global_path.poses.size() - 1) ? 
-        atan2(global_path.poses[i+1].pose.position.y - global_path.poses[i].pose.position.y,
-              global_path.poses[i+1].pose.position.x - global_path.poses[i].pose.position.x) : 
-        tf2::getYaw(goal.pose.orientation);
-      
-      tf2::Quaternion q; q.setRPY(0, 0, yaw);
-      global_path.poses[i].pose.orientation = tf2::toMsg(q);
-      global_path.poses[i].header = global_path.header;
+    // 2. B样条平滑处理控制点
+    std::vector<geometry_msgs::msg::PoseStamped> control_points = pruned;
+    if (control_points.size() >= 2) {
+      control_points.insert(control_points.begin(), 2, pruned.front());
+      control_points.insert(control_points.end(), 2, pruned.back());
     }
-    RCLCPP_INFO(logger_, "Path created with %zu points", global_path.poses.size());
+
+    global_path.poses = bsplineSmooth(control_points, 10);
+    if (global_path.poses.empty()) global_path.poses = pruned;
+
+    auto duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_time_clock).count();
+    RCLCPP_INFO(node->get_logger(), "RRT-Connect 规划成功 | 耗时: %.2f ms", duration);
+  } else {
+    auto duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_time_clock).count();
+    RCLCPP_WARN(node->get_logger(), "RRT-Connect 规划失败 | 耗时: %.2f ms", duration);
   }
 
   return global_path;
-}
-
-bool RRTConnectSmoothPlanner::extendTree(std::vector<Node> & tree, const Node & target, Node & new_node) {
-  int nearest_idx = 0;
-  double min_dist = 1e9;
-  for (size_t i = 0; i < tree.size(); ++i) {
-    double d = getDistance(tree[i], target);
-    if (d < min_dist) { min_dist = d; nearest_idx = static_cast<int>(i); }
-  }
-  double theta = atan2(target.y - tree[nearest_idx].y, target.x - tree[nearest_idx].x);
-  new_node.x = tree[nearest_idx].x + step_size_ * cos(theta);
-  new_node.y = tree[nearest_idx].y + step_size_ * sin(theta);
-  new_node.parent_idx = nearest_idx;
-  if (isCollisionFree(tree[nearest_idx], new_node)) {
-    tree.push_back(new_node); return true;
-  }
-  return false;
-}
-
-void RRTConnectSmoothPlanner::optimizePath(nav_msgs::msg::Path & path) {
-  if (path.poses.size() < 3) return;
-  std::vector<geometry_msgs::msg::PoseStamped> opt;
-  opt.push_back(path.poses.front());
-  size_t curr = 0;
-  while (curr < path.poses.size() - 1) {
-    size_t best = curr + 1;
-    for (size_t i = path.poses.size() - 1; i > curr + 1; --i) {
-      Node n1 = {path.poses[curr].pose.position.x, path.poses[curr].pose.position.y, -1};
-      Node n2 = {path.poses[i].pose.position.x, path.poses[i].pose.position.y, -1};
-      if (isCollisionFree(n1, n2)) { best = i; break; }
-    }
-    opt.push_back(path.poses[best]);
-    curr = best;
-  }
-  path.poses = opt;
-}
-
-void RRTConnectSmoothPlanner::smoothPath(nav_msgs::msg::Path & path, double target_spacing) {
-  if (path.poses.size() < 2) return;
-  std::vector<geometry_msgs::msg::PoseStamped> res;
-  for (size_t i = 0; i < path.poses.size() - 1; ++i) {
-    auto p1 = path.poses[i].pose.position;
-    auto p2 = path.poses[i+1].pose.position;
-    double d = hypot(p2.x - p1.x, p2.y - p1.y);
-    res.push_back(path.poses[i]);
-    int steps = std::max(static_cast<int>(d / target_spacing), 1);
-    for (int j = 1; j < steps; ++j) {
-      double t = static_cast<double>(j) / steps;
-      geometry_msgs::msg::PoseStamped p = path.poses[i];
-      p.pose.position.x = p1.x + t * (p2.x - p1.x);
-      p.pose.position.y = p1.y + t * (p2.y - p1.y);
-      res.push_back(p);
-    }
-  }
-  res.push_back(path.poses.back());
-  path.poses = res;
-}
-
-bool RRTConnectSmoothPlanner::isCollisionFree(const Node & n1, const Node & n2) {
-  double d = getDistance(n1, n2);
-  // 使用你代码中的 0.05 步长
-  int steps = std::max(static_cast<int>(d / 0.05), 1);
-  for (int i = 0; i <= steps; ++i) {
-    double t = static_cast<double>(i) / steps;
-    unsigned int mx, my;
-    if (!costmap_->worldToMap(n1.x + t*(n2.x-n1.x), n1.y + t*(n2.y-n1.y), mx, my)) return false;
-    if (costmap_->getCost(mx, my) >= 253) return false;
-  }
-  return true;
-}
-
-double RRTConnectSmoothPlanner::getDistance(const Node & n1, const Node & n2) {
-  return hypot(n1.x - n2.x, n1.y - n2.y);
-}
-
-void RRTConnectSmoothPlanner::publishTree(const std::vector<Node> & start_tree, const std::vector<Node> & goal_tree, const std::string & frame_id) {
-  visualization_msgs::msg::Marker m;
-  m.header.frame_id = frame_id; m.header.stamp = rclcpp::Clock().now();
-  m.ns = "rrt_debug"; m.id = 0; m.type = visualization_msgs::msg::Marker::LINE_LIST;
-  m.action = visualization_msgs::msg::Marker::ADD; m.scale.x = 0.015;
-  m.pose.orientation.w = 1.0;
-  auto add = [&](const std::vector<Node>& t, float r, float g, float b) {
-    for (size_t i = 1; i < t.size(); ++i) {
-      int p = t[i].parent_idx; if (p == -1) continue;
-      geometry_msgs::msg::Point p1, p2;
-      p1.x = t[i].x; p1.y = t[i].y; p1.z = 0.02;
-      p2.x = t[p].x; p2.y = t[p].y; p2.z = 0.02;
-      m.points.push_back(p1); m.points.push_back(p2);
-      std_msgs::msg::ColorRGBA c; c.r = r; c.g = g; c.b = b; c.a = 0.5;
-      m.colors.push_back(c); m.colors.push_back(c);
-    }
-  };
-  add(start_tree, 0.0, 1.0, 1.0); add(goal_tree, 1.0, 0.0, 0.0);
-  marker_pub_->publish(m);
 }
 
 } // namespace nav2_rrt_connect_smooth_planner

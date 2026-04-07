@@ -196,7 +196,7 @@ local_costmap:
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 12.0
+        cost_scaling_factor: 50.0
         inflation_radius: 0.15
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -254,7 +254,7 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 12.0
+        cost_scaling_factor: 50.0 
         inflation_radius: 0.15
       always_send_full_costmap: True
 
@@ -293,10 +293,10 @@ planner_server:
       # plugin: "nav2_rrt_apf_guided_planner/RRTAPFGuidedPlanner" #APF引导RRT算法
       # plugin: "nav2_rrt_adaptive_step_planner/RRTAdaptiveStepPlanner" #自适应步长RRT算法
       # plugin: "nav2_rrt_pruning_planner/RRTPruningPlanner" #RRT剪枝规划器
-      plugin: "nav2_rrt_bspline_smooth_planner/RRTBSplineSmoothPlanner" #B样条RRT规划器
+      # plugin: "nav2_rrt_bspline_smooth_planner/RRTBSplineSmoothPlanner" #B样条RRT规划器
       
       # plugin: "nav2_rrt_connect_planner/RRTConnectPlanner" #RRT Connect规划器（为窄通道而生）
-      # plugin: "nav2_rrt_connect_smooth_planner/RRTConnectSmoothPlanner" #RRT Connect平滑规划器（为窄通道而生，且路径更平滑）
+      plugin: "nav2_rrt_connect_smooth_planner/RRTConnectSmoothPlanner" #RRT Connect平滑规划器（为窄通道而生，且路径更平滑）
 
       use_sim_time: True  # 显式为插件再加一遍，防止 C++ 内部获取失败
 

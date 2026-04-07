@@ -513,12 +513,11 @@
       </link>
       <static>1</static>
     </model>
-    
     <state world_name='default'>
-      <sim_time>1004 160000000</sim_time>
-      <real_time>70 406924736</real_time>
-      <wall_time>1775477482 616199442</wall_time>
-      <iterations>69777</iterations>
+      <sim_time>1042 617000000</sim_time>
+      <real_time>38 645597085</real_time>
+      <wall_time>1775571888 944851719</wall_time>
+      <iterations>38457</iterations>
       <model name='bigger_room'>
         <pose>0.04614 -0.006182 0 0 -0 0</pose>
         <scale>1 1 1</scale>
@@ -594,58 +593,56 @@
         </link>
       </model>
       <model name='person_standing'>
-        <pose>4.34917 -2.51957 -0 1e-06 -1e-06 0.000432</pose>
+        <pose>4.34917 -2.51957 -0 -1e-06 1e-06 0.000439</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>4.34917 -2.51957 -0 1e-06 -1e-06 0.000432</pose>
+          <pose>4.34917 -2.51957 -0 -1e-06 1e-06 0.000439</pose>
           <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>-1.68427 -1.1835 -1.1834 -1.90529 -1.42089 3.11399</acceleration>
-          <wrench>-134.742 -94.6803 -94.6719 0 -0 0</wrench>
+          <acceleration>1.60956 1.13329 -1.51208 1.93695 1.45563 3.09681</acceleration>
+          <wrench>128.765 90.6635 -120.967 0 -0 0</wrench>
         </link>
       </model>
       <model name='person_standing_0'>
-        <pose>-3.19437 2.55313 -0 0 1e-06 -0.00053</pose>
+        <pose>-3.19437 2.55313 -0 0 -1e-06 -0.00054</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>-3.19437 2.55313 -0 0 1e-06 -0.00053</pose>
+          <pose>-3.19437 2.55313 -0 0 -1e-06 -0.00054</pose>
           <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>1.71776 1.20575 -0.990274 1.87119 1.36503 3.10393</acceleration>
-          <wrench>137.421 96.4596 -79.2219 0 -0 0</wrench>
+          <acceleration>-1.56625 -1.1005 -1.74061 -1.97171 -1.50093 3.09804</acceleration>
+          <wrench>-125.3 -88.0403 -139.249 0 -0 0</wrench>
         </link>
       </model>
       <model name='person_standing_1'>
-        <pose>-5.80643 -2.58674 -1e-06 -1e-06 1e-06 -0.000962</pose>
+        <pose>-5.8064 -2.58674 -0 0 1e-06 -0.00122</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>-5.80643 -2.58674 -1e-06 -1e-06 1e-06 -0.000962</pose>
+          <pose>-5.8064 -2.58674 -0 0 1e-06 -0.00122</pose>
           <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>1.61623 1.13467 -1.48678 1.93609 1.44924 3.09623</acceleration>
-          <wrench>129.298 90.7733 -118.942 0 -0 0</wrench>
+          <acceleration>1.61851 1.13559 -1.47576 1.93443 1.44621 3.09658</acceleration>
+          <wrench>129.481 90.847 -118.061 0 -0 0</wrench>
         </link>
       </model>
       <model name='person_walking'>
-        <pose>0.400762 -0.646146 -1e-06 -2e-06 1e-06 -1.5977</pose>
+        <pose>2.69753 -0.707952 -6e-06 -2e-06 1e-06 -1.5977</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>0.400762 -0.646146 -1e-06 -2e-06 1e-06 -1.5977</pose>
+          <pose>2.69753 -0.707952 -6e-06 -2e-06 1e-06 -1.5977</pose>
           <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>1.98602 -1.00889 -2.75523 -1.91454 1.29356 -3.03695</acceleration>
-          <wrench>158.882 -80.7108 -220.419 0 -0 0</wrench>
+          <acceleration>0 0 -0.1225 0 -0 0</acceleration>
+          <wrench>0 0 -9.8 0 -0 0</wrench>
         </link>
       </model>
       <light name='sun'>
         <pose>0 0 10 0 -0 0</pose>
       </light>
     </state>
-    
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>-10.8361 0.170625 10.8965 0 0.817802 -0.248039</pose>
+        <pose>-8.34433 1.21142 12.8737 0 1.0698 -0.408043</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
     </gui>
-    
     <model name='person_standing'>
       <link name='link'>
         <inertial>
@@ -716,7 +713,6 @@
       </link>
       <pose>4.34922 -2.51957 0 0 -0 0</pose>
     </model>
-    
     <model name='person_standing_0'>
       <link name='link'>
         <inertial>
@@ -787,7 +783,6 @@
       </link>
       <pose>-3.19443 2.55313 0 0 -0 0</pose>
     </model>
-    
     <model name='person_standing_1'>
       <link name='link'>
         <inertial>
@@ -858,11 +853,11 @@
       </link>
       <pose>-5.80652 -2.58674 0 0 -0 0</pose>
     </model>
-    
     <model name='person_walking'>
       <link name='link'>
         <inertial>
-          <pose>0 0 0.01 0 -0 0</pose> <mass>80</mass>
+          <pose>0 0 0.01 0 -0 0</pose>
+          <mass>80</mass>
           <inertia>
             <ixx>27.82</ixx>
             <ixy>0</ixy>
@@ -887,9 +882,12 @@
             <bounce/>
             <friction>
               <ode>
-                <mu>0.0</mu>
-                <mu2>0.0</mu2>
+                <mu>0</mu>
+                <mu2>0</mu2>
               </ode>
+              <torsional>
+                <ode/>
+              </torsional>
             </friction>
           </surface>
         </collision>
@@ -901,6 +899,18 @@
             </mesh>
           </geometry>
           <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
         </collision>
         <visual name='visual'>
           <pose>0 0 -0.02 0 -0 0</pose>
@@ -912,20 +922,19 @@
         </visual>
         <self_collide>0</self_collide>
         <enable_wind>0</enable_wind>
-        <kinematic>1</kinematic> </link>
+        <kinematic>1</kinematic>
+      </link>
       <pose>0.071621 -0.666099 0 0 -0 0</pose>
-      
-      <plugin name="person_controller" filename="libgazebo_ros_planar_move.so">
+      <plugin name='person_controller' filename='libgazebo_ros_planar_move.so'>
         <ros>
           <remapping>cmd_vel:=person_cmd_vel</remapping>
           <remapping>odom:=person_odom</remapping>
         </ros>
         <update_rate>50.0</update_rate>
-        <publish_odom>false</publish_odom>
-        <publish_odom_tf>false</publish_odom_tf>
+        <publish_odom>0</publish_odom>
+        <publish_odom_tf>0</publish_odom_tf>
         <robot_base_frame>link</robot_base_frame>
       </plugin>
     </model>
-    
   </world>
 </sdf>
