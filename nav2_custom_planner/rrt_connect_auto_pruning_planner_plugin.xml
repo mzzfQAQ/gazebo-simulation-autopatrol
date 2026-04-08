@@ -1,0 +1,5 @@
+<library path="nav2_rrt_connect_auto_pruning_planner_plugin">
+	<class name="nav2_rrt_connect_auto_pruning_planner/RRTConnectAutoPruningPlanner" type="nav2_rrt_connect_auto_pruning_planner::RRTConnectAutoPruningPlanner" base_class_type="nav2_core::GlobalPlanner">
+	  <description>RRT-Connect with FSM Adaptive Pruning</description>
+	</class>
+</library>

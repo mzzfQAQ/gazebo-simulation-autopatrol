@@ -196,8 +196,8 @@ local_costmap:
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 50.0
-        inflation_radius: 0.15
+        cost_scaling_factor: 12.0
+        inflation_radius: 0.4
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: True
@@ -254,8 +254,8 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 50.0 
-        inflation_radius: 0.15
+        cost_scaling_factor: 12.0 
+        inflation_radius: 0.4
       always_send_full_costmap: True
 
 map_server:
@@ -296,7 +296,8 @@ planner_server:
       # plugin: "nav2_rrt_bspline_smooth_planner/RRTBSplineSmoothPlanner" #B样条RRT规划器
       
       # plugin: "nav2_rrt_connect_planner/RRTConnectPlanner" #RRT Connect规划器（为窄通道而生）
-      plugin: "nav2_rrt_connect_smooth_planner/RRTConnectSmoothPlanner" #RRT Connect平滑规划器（为窄通道而生，且路径更平滑）
+      # plugin: "nav2_rrt_connect_smooth_planner/RRTConnectSmoothPlanner" #RRT Connect平滑规划器（为窄通道而生，且路径更平滑）
+      plugin: "nav2_rrt_connect_auto_pruning_planner/RRTConnectAutoPruningPlanner" #RRTConnect with FSM Adaptive Pruning
 
       use_sim_time: True  # 显式为插件再加一遍，防止 C++ 内部获取失败
 
