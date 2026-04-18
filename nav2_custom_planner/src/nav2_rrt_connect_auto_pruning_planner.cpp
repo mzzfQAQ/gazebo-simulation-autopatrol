@@ -320,6 +320,19 @@ nav_msgs::msg::Path RRTConnectAutoPruningPlanner::createPlan(
     global_path.poses = bsplineSmooth(control_points, 10);
     if (global_path.poses.empty()) global_path.poses = adaptive_pruned;
 
+    // =========================================================================
+    // 👇 新增修复点：强制修正终点姿态和坐标，确保朝向生效 👇
+    // =========================================================================
+    if (!global_path.poses.empty()) {
+      // 强制使用目标点的绝对坐标，消除 B 样条平滑带来的终点偏差
+      global_path.poses.back().pose.position.x = goal.pose.position.x;
+      global_path.poses.back().pose.position.y = goal.pose.position.y;
+      
+      // 强制使用目标点的朝向 (Yaw -> Quaternion)
+      global_path.poses.back().pose.orientation = goal.pose.orientation;
+    }
+    // 👆 修改结束 👆
+
     auto duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_time_clock).count();
     RCLCPP_INFO(node->get_logger(), "FSM 自适应规划成功 | 耗时: %.2f ms", duration);
   } else {

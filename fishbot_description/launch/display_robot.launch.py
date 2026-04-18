@@ -6,7 +6,7 @@ import os
 def generate_launch_description():
     # 获取默认的 urdf 路径
     urdf_package_path = get_package_share_directory('fishbot_description')
-    default_urdf_path = os.path.join(urdf_package_path,'urdf','fishbot.urdf.xacro') 
+    default_urdf_path = os.path.join(urdf_package_path,'urdf','fishbot','fishbot.urdf.xacro') 
     default_rviz_path = os.path.join(urdf_package_path,'config','display_robot_model.rviz')
     # 声明一个 urdf 目录的默认参数，方便修改
     action_declare_arg_mode_path = launch.actions.DeclareLaunchArgument(

@@ -2,7 +2,6 @@ import rclpy
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from tf2_ros import TransformListener, Buffer
-from tf_transformations import euler_from_quaternion, quaternion_from_euler
 from rclpy.duration import Duration
 from autopatrol_interfaces.srv import SpeechText
 from sensor_msgs.msg import Image
@@ -10,16 +9,17 @@ from std_msgs.msg import Bool # 接收检测信号
 from cv_bridge import CvBridge  
 import cv2 
 import time
+import math # 【新增】引入原生的 math 库进行四元数计算
 
 class PatrolNode(BasicNavigator):
     def __init__(self, node_name='patrol_node'):
         super().__init__(node_name)
         self.declare_parameter('initial_point', [0.0, 0.0, 0.0])
-        # 按照 [x, y, yaw] 的顺序，规划 4 个巡检目标点
+        # 按照 [x, y, yaw] 的顺序，规划 4 个巡检目标点 (默认参数，会被 yaml 覆盖)
         self.declare_parameter('target_points', [
-             8.0,  -2.5,  3.14,  # 目标点1：左上病房，朝左
-            -5.0,  -3.3,  3.14,   # 目标点2：右上病房，朝右
-            -6.0, 2.5, 0.0,  # 目标点3：右下病房，朝下
+             8.0, -2.5,  3.14,  # 目标点1：左上病房，朝左
+            -3.0, -2.8,  0.0,   # 目标点2：右上病房，朝右
+            -7.5,  2.0, -1.57,  # 目标点3：右下病房，朝下
              0.0,  0.0,  1.57   # 目标点4：返回中央大厅，朝上
         ])
         self.initial_point_ = self.get_parameter('initial_point').value
@@ -38,7 +38,7 @@ class PatrolNode(BasicNavigator):
         self.subscription_image = self.create_subscription(
             Image, '/yolo/annotated_image', self.image_callback, 10)
         
-        # 【新增】订阅 YOLO 的检测状态，并设置状态标志位
+        # 订阅 YOLO 的检测状态，并设置状态标志位
         self.subscription_detect = self.create_subscription(
             Bool, '/yolo/person_detected', self.detect_callback, 10)
         self.person_detected = False
@@ -75,11 +75,16 @@ class PatrolNode(BasicNavigator):
         pose.header.frame_id = 'map'
         pose.pose.position.x = float(x)
         pose.pose.position.y = float(y)
-        rotation_quat = quaternion_from_euler(0, 0, yaw)
-        pose.pose.orientation.x = rotation_quat[0]
-        pose.pose.orientation.y = rotation_quat[1]
-        pose.pose.orientation.z = rotation_quat[2]
-        pose.pose.orientation.w = rotation_quat[3]
+        
+        # 【修改】将传入的 yaw 强制转为浮点数
+        yaw_float = float(yaw)
+        self.get_logger().info(f"\n\n ====> 正在前往目标: X={x}, Y={y}, 设定的终点朝向(Yaw)={yaw_float} <==== \n")
+        
+        # 【修改】手动计算偏航角对应的四元数 (仅绕 Z 轴旋转)
+        pose.pose.orientation.x = 0.0
+        pose.pose.orientation.y = 0.0
+        pose.pose.orientation.z = math.sin(yaw_float / 2.0)
+        pose.pose.orientation.w = math.cos(yaw_float / 2.0)
         return pose
 
     def init_robot_pose(self):
@@ -156,7 +161,14 @@ def main():
         if reached_target:
             patrol.speach_text(text=f"已到达病房{point_idx+1}，环境正常")
             patrol.record_image(prefix="room_env")
+            
+            # 【关键修改】：到达巡检点后，强制清除冷却状态，立即恢复对人员的感知
+            if patrol.is_interacting:
+                patrol.is_interacting = False
+                patrol.get_logger().info('已到达巡检点，重置冷却时间，立即恢复人员感知。')
+                
             point_idx += 1 # 只有真正到达了，才切换到下一个点
+            
         else:
             # 如果是 False，说明是半路遇到老人被打断了，重新发起去这个点的任务
             patrol.get_logger().info('导航被打断，处理完突发事件后恢复原定路线...')
